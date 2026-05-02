@@ -39,19 +39,26 @@ function BlogDetailPage({ navigateTo }: BlogDetailPageProps) {
 
   return (
     <>
-      <section className="page-hero blog-detail-hero">
-        <button className="back-button" type="button" onClick={() => navigateTo('/blogs')}>
-          <span className="material-symbols-outlined" aria-hidden="true">arrow_back</span>
-          Back to blogs
-        </button>
-        <p className="eyebrow">{selectedPost.category}</p>
-        <h1>{selectedPost.title}</h1>
-        <p className="hero-text">{selectedPost.excerpt}</p>
+      <section
+        className="page-hero page-hero-with-image blog-detail-hero"
+        style={{
+          backgroundImage: `linear-gradient(90deg, rgba(15, 23, 42, 0.88), rgba(15, 23, 42, 0.54)), url(${selectedPost.image})`,
+        }}
+      >
+        <div className="page-hero-copy">
+          <button className="back-button" type="button" onClick={() => navigateTo('/blogs')}>
+            <span className="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+            Back to blogs
+          </button>
+          <p className="eyebrow">{selectedPost.category}</p>
+          <h1>{selectedPost.title}</h1>
+          <p className="hero-text">{selectedPost.excerpt}</p>
+        </div>
       </section>
 
       <section className="blogs-section">
         <article className="blog-detail" aria-labelledby="selected-blog-title">
-          <img className="blog-detail-image" src={selectedPost.image} alt={selectedPost.imageAlt} />
+          <img className="blog-detail-image" src={selectedPost.image} alt={selectedPost.imageAlt} loading="lazy" decoding="async" />
           <div className="blog-detail-header">
             <div>
               <div className="blog-meta">

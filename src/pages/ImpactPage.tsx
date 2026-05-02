@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import heroImage from '../assets/hero.png'
 import { impactFocus, impactGoals, impactStats, impactTimeline } from '../data/siteData'
 
 const impactCategories = ['All', ...Array.from(new Set(impactFocus.map((item) => item.category)))]
@@ -12,13 +13,20 @@ function ImpactPage() {
 
   return (
     <>
-      <section className="page-hero">
-        <p className="eyebrow">Impact</p>
-        <h1>Clear outcomes from every gathering.</h1>
-        <p className="hero-text">
-          Foundation Inc measures community reach, event delivery, volunteer
-          activity, and follow-up so programs stay useful and accountable.
-        </p>
+      <section
+        className="page-hero page-hero-with-image"
+        style={{
+          backgroundImage: `linear-gradient(90deg, rgba(15, 23, 42, 0.88), rgba(15, 23, 42, 0.54)), url(${heroImage})`,
+        }}
+      >
+        <div className="page-hero-copy">
+          <p className="eyebrow">Impact</p>
+          <h1>Clear outcomes from every gathering.</h1>
+          <p className="hero-text">
+            Foundation Inc measures community reach, event delivery, volunteer
+            activity, and follow-up so programs stay useful and accountable.
+          </p>
+        </div>
       </section>
 
       <section className="impact-strip" aria-label="Foundation impact statistics">

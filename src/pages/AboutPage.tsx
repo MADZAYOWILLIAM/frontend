@@ -1,3 +1,5 @@
+import heroImage from '../assets/hero.png'
+
 const aboutValues = [
   {
     title: 'Practical support',
@@ -19,14 +21,21 @@ const aboutValues = [
 function AboutPage() {
   return (
     <>
-      <section className="page-hero">
-        <p className="eyebrow">About</p>
-        <h1>Empowering youth through community-led action.</h1>
-        <p className="hero-text">
-          Empoweredge Youth Club brings young people, mentors, volunteers, and
-          local supporters together through events, mentorship, and practical
-          community engagement.
-        </p>
+      <section
+        className="page-hero page-hero-with-image"
+        style={{
+          backgroundImage: `linear-gradient(90deg, rgba(15, 23, 42, 0.88), rgba(15, 23, 42, 0.54)), url(${heroImage})`,
+        }}
+      >
+        <div className="page-hero-copy">
+          <p className="eyebrow">About</p>
+          <h1>Empowering youth through community-led action.</h1>
+          <p className="hero-text">
+            Empoweredge Youth Club brings young people, mentors, volunteers, and
+            local supporters together through events, mentorship, and practical
+            community engagement.
+          </p>
+        </div>
       </section>
 
       <section className="about-story-section">

@@ -12,13 +12,20 @@ function EventPage() {
 
   return (
     <>
-      <section className="page-hero">
-        <p className="eyebrow">Event</p>
-        <h1>Upcoming gatherings with clear community outcomes.</h1>
-        <p className="hero-text">
-          Each event is planned around practical support, trusted local partners,
-          and follow-up that keeps help moving after the day ends.
-        </p>
+      <section
+        className="page-hero page-hero-with-image"
+        style={{
+          backgroundImage: `linear-gradient(90deg, rgba(15, 23, 42, 0.88), rgba(15, 23, 42, 0.54)), url(${upcomingEvents[0].image})`,
+        }}
+      >
+        <div className="page-hero-copy">
+          <p className="eyebrow">Event</p>
+          <h1>Upcoming gatherings with clear community outcomes.</h1>
+          <p className="hero-text">
+            Each event is planned around practical support, trusted local partners,
+            and follow-up that keeps help moving after the day ends.
+          </p>
+        </div>
       </section>
 
       <section className="events-section">
@@ -34,7 +41,7 @@ function EventPage() {
         <div className="event-list" aria-label="Upcoming events">
           {upcomingEvents.map((event) => (
             <article className="event-row" key={event.name}>
-              <img className="event-row-image" src={event.image} alt={event.imageAlt} />
+              <img className="event-row-image" src={event.image} alt={event.imageAlt} loading="lazy" decoding="async" />
               <time>{event.date}</time>
               <div>
                 <h3>{event.name}</h3>

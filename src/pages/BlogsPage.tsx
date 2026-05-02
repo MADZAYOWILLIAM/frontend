@@ -26,13 +26,20 @@ function BlogsPage({ navigateTo }: BlogsPageProps) {
 
   return (
     <>
-      <section className="page-hero">
-        <p className="eyebrow">Blogs</p>
-        <h1>Stories and field notes from the work.</h1>
-        <p className="hero-text">
-          Read practical reflections from community events, youth mentorship,
-          partner programs, and resource drives.
-        </p>
+      <section
+        className="page-hero page-hero-with-image"
+        style={{
+          backgroundImage: `linear-gradient(90deg, rgba(15, 23, 42, 0.88), rgba(15, 23, 42, 0.54)), url(${blogPosts[0].image})`,
+        }}
+      >
+        <div className="page-hero-copy">
+          <p className="eyebrow">Blogs</p>
+          <h1>Stories and field notes from the work.</h1>
+          <p className="hero-text">
+            Read practical reflections from community events, youth mentorship,
+            partner programs, and resource drives.
+          </p>
+        </div>
       </section>
 
       <section className="blogs-section">
@@ -51,7 +58,7 @@ function BlogsPage({ navigateTo }: BlogsPageProps) {
         <div className="blog-grid">
           {filteredPosts.map((post) => (
             <article className="blog-card" key={post.title}>
-              <img className="blog-card-image" src={post.image} alt={post.imageAlt} />
+              <img className="blog-card-image" src={post.image} alt={post.imageAlt} loading="lazy" decoding="async" />
               <div className="blog-meta">
                 <span>{post.category}</span>
                 <span>{post.readTime}</span>

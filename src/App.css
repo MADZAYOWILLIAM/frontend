@@ -54,6 +54,16 @@
   margin-inline: auto;
 }
 
+.page-loading {
+  width: min(1180px, 100%);
+  min-height: 48vh;
+  margin: 32px auto;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
 .site-nav {
   position: sticky;
   top: 0;
@@ -100,18 +110,20 @@
 
 .brand-mark {
   display: grid;
-  width: 44px;
-  height: 44px;
+  width: 52px;
+  height: 52px;
   place-items: center;
   border-radius: 999px;
-  color: #fff;
-  background: linear-gradient(135deg, #1476ff, #0f172a);
+  background: #fff;
   box-shadow: none;
+  overflow: hidden;
 }
 
-.brand-mark .material-symbols-outlined {
-  font-size: 1.35rem;
-  font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+.brand-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .brand-text {
@@ -191,29 +203,42 @@
 
 .mobile-social-links {
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 8px;
 }
 
 .mobile-social-links a,
 .mobile-menu-button {
-  width: 40px;
-  height: 40px;
+  display: grid;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
   border: 0;
   border-radius: 999px;
   place-items: center;
   color: var(--text-main);
-  background: rgba(255, 255, 255, 0.72);
+  background: transparent;
   box-shadow: none;
 }
 
 .mobile-social-links a {
+  padding: 0;
+  line-height: 0;
   text-decoration: none;
 }
 
-.mobile-social-links svg {
-  width: 20px;
-  height: 20px;
-  fill: currentColor;
+.social-icon {
+  display: block;
+  flex: 0 0 auto;
+  object-fit: contain;
+  transition: transform 220ms var(--ease-premium);
+}
+
+.mobile-social-links .social-icon {
+  width: 30px;
+  height: 30px;
 }
 
 .mobile-social-links .facebook-link,
@@ -301,8 +326,32 @@
   animation: rise-in 800ms var(--ease-premium) both;
 }
 
+.page-hero-with-image {
+  min-height: clamp(380px, 48vw, 520px);
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  padding: clamp(72px, 10vw, 112px) clamp(24px, 6vw, 56px);
+  background-position: center;
+  background-size: cover;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12);
+}
+
+.page-hero-copy {
+  min-width: 0;
+  max-width: 760px;
+}
+
+.page-hero-with-image h1 {
+  color: #fff;
+}
+
 .page-hero h1 {
   max-width: 820px;
+}
+
+.page-hero-with-image .hero-text {
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .blog-detail-hero {
@@ -2599,21 +2648,28 @@ h3 {
 
   .mobile-social-links {
     display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
-  .mobile-menu-button:hover,
-  .mobile-social-links a:hover {
+  .mobile-menu-button:hover {
     color: #fff;
     background: var(--primary);
   }
 
-  .mobile-social-links a:hover {
-    background: var(--social-color);
+  .mobile-menu-button .material-symbols-outlined {
+    font-size: 1.55rem;
+    line-height: 1;
+    font-variation-settings: 'FILL' 0, 'wght' 600, 'GRAD' 0, 'opsz' 24;
   }
 
-  .mobile-social-links a:hover svg,
-  .mobile-nav-socials a:hover svg {
-    color: #fff;
+  .mobile-social-links a:hover {
+    background: transparent;
+  }
+
+  .mobile-social-links a:hover .social-icon,
+  .mobile-nav-socials a:hover .social-icon {
+    transform: scale(1.08);
   }
 
   .mobile-nav-backdrop {
@@ -2683,11 +2739,11 @@ h3 {
   .mobile-nav-panel a {
     display: inline-flex;
     position: relative;
-    min-height: 42px;
+    min-height: 50px;
     align-items: center;
-    gap: 12px;
-    border-radius: 9px;
-    padding: 0 12px;
+    gap: 14px;
+    border-radius: 14px;
+    padding: 7px 14px 7px 8px;
     color: #d8e1f1;
     background: transparent;
     font-size: 0.9rem;
@@ -2696,9 +2752,9 @@ h3 {
   }
 
   .mobile-nav-panel a.active {
-    color: #252a43;
+    color: #101828;
     background: #eef6ff;
-    box-shadow: none;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
   }
 
   .mobile-nav-panel a.active::after {
@@ -2715,12 +2771,30 @@ h3 {
   }
 
   .mobile-nav-panel a:hover {
-    color: #252a43;
+    color: #101828;
     background: #eef6ff;
   }
 
-  .mobile-nav-panel .material-symbols-outlined {
-    font-size: 1.18rem;
+  .mobile-nav-panel > a .material-symbols-outlined,
+  .mobile-nav-auth a .material-symbols-outlined {
+    display: grid;
+    flex: 0 0 34px;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border-radius: 11px;
+    color: #eef6ff;
+    background: rgba(238, 246, 255, 0.12);
+    font-size: 1.24rem;
+    line-height: 1;
+    font-variation-settings: 'FILL' 0, 'wght' 600, 'GRAD' 0, 'opsz' 24;
+  }
+
+  .mobile-nav-panel > a:hover .material-symbols-outlined,
+  .mobile-nav-panel > a.active .material-symbols-outlined,
+  .mobile-nav-auth a:hover .material-symbols-outlined {
+    color: #fff;
+    background: linear-gradient(135deg, var(--primary), #173ea6);
   }
 
   .mobile-nav-auth {
@@ -2735,37 +2809,40 @@ h3 {
   .mobile-nav-socials {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 12px;
     margin-top: 12px;
-    padding: 12px;
+    padding: 8px;
     border-radius: 12px;
-    background: #eef6ff;
+    background: transparent;
   }
 
   .mobile-nav-socials a {
     display: grid;
-    width: 44px;
-    height: 44px;
-    min-height: 44px;
+    flex: 0 0 48px;
+    width: 48px;
+    height: 48px;
+    min-height: 48px;
+    align-items: center;
+    justify-content: center;
     place-items: center;
     border-radius: 999px;
     padding: 0;
     color: #252a43;
-    background: #fff;
+    background: transparent;
   }
 
   .mobile-nav-socials a::after {
     display: none;
   }
 
-  .mobile-nav-socials svg {
-    width: 22px;
-    height: 22px;
-    fill: currentColor;
+  .mobile-nav-socials .social-icon {
+    width: 34px;
+    height: 34px;
   }
 
   .mobile-nav-socials a:hover {
-    background: var(--social-color);
+    background: transparent;
   }
 
   .hero-section,
@@ -3010,6 +3087,25 @@ h3 {
   }
 }
 
+@media (min-width: 561px) {
+  .site-nav {
+    flex-wrap: nowrap;
+  }
+
+  .nav-links,
+  .nav-auth-link,
+  .nav-cta {
+    display: inline-flex !important;
+  }
+
+  .mobile-social-links,
+  .mobile-menu-button,
+  .mobile-nav-panel,
+  .mobile-nav-backdrop {
+    display: none !important;
+  }
+}
+
 @media (max-width: 560px) {
   .home-page {
     padding-inline: 14px;
@@ -3084,6 +3180,11 @@ h3 {
 
   .hero-section {
     padding: 48px 24px;
+  }
+
+  .page-hero-with-image {
+    min-height: 420px;
+    padding: 54px 24px;
   }
 
   .hero-copy h1 {

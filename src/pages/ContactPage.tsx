@@ -1,17 +1,25 @@
 import { useState } from 'react'
+import heroImage from '../assets/hero.png'
 
 function ContactPage() {
   const [messageSent, setMessageSent] = useState(false)
 
   return (
     <>
-      <section className="page-hero">
-        <p className="eyebrow">Contact</p>
-        <h1>Talk to the Foundation Inc team.</h1>
-        <p className="hero-text">
-          Reach out about events, mentorship, sponsorships, volunteering, or
-          community partnerships.
-        </p>
+      <section
+        className="page-hero page-hero-with-image"
+        style={{
+          backgroundImage: `linear-gradient(90deg, rgba(15, 23, 42, 0.88), rgba(15, 23, 42, 0.54)), url(${heroImage})`,
+        }}
+      >
+        <div className="page-hero-copy">
+          <p className="eyebrow">Contact</p>
+          <h1>Talk to the Foundation Inc team.</h1>
+          <p className="hero-text">
+            Reach out about events, mentorship, sponsorships, volunteering, or
+            community partnerships.
+          </p>
+        </div>
       </section>
 
       <section className="contact-section">
