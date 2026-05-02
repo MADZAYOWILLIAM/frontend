@@ -28,7 +28,6 @@ function SiteNav({ currentRoute, navigateTo }: NavigationProps) {
       }
     }
 
-    syncViewport()
     mediaQuery.addEventListener('change', syncViewport)
 
     return () => mediaQuery.removeEventListener('change', syncViewport)
