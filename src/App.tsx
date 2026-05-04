@@ -196,11 +196,22 @@ function App() {
 
   return (
     <main className="home-page">
+      <video
+        className="app-background-video"
+        autoPlay
+        loop
+        muted
+        playsInline
+        preload="metadata"
+        aria-hidden="true"
+      >
+        <source src="/home-hero.webm" type="video/webm" />
+      </video>
       {visibleRoute !== '/dashboard' && visibleRoute !== '/admin' && <SiteNav currentRoute={visibleRoute} navigateTo={navigateTo} />}
       <Suspense fallback={<div className="page-loading" role="status" aria-live="polite">Loading page...</div>}>
         {visibleRoute === '/' && <HomePage navigateTo={navigateTo} />}
         {visibleRoute === '/about' && <AboutPage />}
-        {visibleRoute === '/event' && <EventPage />}
+        {visibleRoute === '/event' && <EventPage navigateTo={navigateTo} />}
         {visibleRoute === '/blogs' && <BlogsPage navigateTo={navigateTo} />}
         {visibleRoute === '/blog' && <BlogDetailPage key={currentUrl} navigateTo={navigateTo} />}
         {visibleRoute === '/impact' && <ImpactPage />}

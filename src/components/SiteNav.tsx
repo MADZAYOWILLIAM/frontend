@@ -33,6 +33,27 @@ function SiteNav({ currentRoute, navigateTo }: NavigationProps) {
     return () => mediaQuery.removeEventListener('change', syncViewport)
   }, [])
 
+  useEffect(() => {
+    if (!isMenuOpen) {
+      return
+    }
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMenuOpen(false)
+      }
+    }
+
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', closeOnEscape)
+
+    return () => {
+      document.body.style.overflow = originalOverflow
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [isMenuOpen])
+
   const goToPage = (path: (typeof navItems)[number]['path']) => {
     navigateTo(path)
     setIsMenuOpen(false)
@@ -54,7 +75,7 @@ function SiteNav({ currentRoute, navigateTo }: NavigationProps) {
         </span>
         <span className="brand-text">
           <strong>Empoweredge</strong>
-          <span>Youth Club</span>
+          <span> Club</span>
         </span>
       </a>
       <div className="nav-links" aria-label="Pages">
@@ -118,7 +139,7 @@ function SiteNav({ currentRoute, navigateTo }: NavigationProps) {
         />
       )}
       {isPhoneViewport && (
-        <div className="mobile-nav-panel" aria-label="Mobile pages">
+        <div className="mobile-nav-panel" aria-hidden={!isMenuOpen} aria-label="Mobile pages">
           <div className="mobile-nav-heading">
             <strong>Sidebar Menu</strong>
             <button type="button" aria-label="Close menu" onClick={() => setIsMenuOpen(false)}>

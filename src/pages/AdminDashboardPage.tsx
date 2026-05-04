@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import { useMemo, useState } from 'react'
 import { adminBlogs, adminComments, adminEvents, adminMessages, adminStats, adminUsers } from '../data/adminData'
 import { usePersistentState } from '../hooks/usePersistentState'
@@ -6,7 +6,12 @@ type AdminDashboardPageProps = {
   onSignOut: () => void
 }
 
-type AdminTab = 'Overview' | 'Users' | 'Events' | 'Blogs' | 'Comments' | 'Messages' | 'Settings'
+type AdminTab = 'Overview' | 'Users' | 'Events' | 'Blogs' | 'Comments' | 'Messages' | 'AI Assistant' | 'Settings'
+type AdminChatMessage = {
+  id: string
+  role: 'assistant' | 'user'
+  text: string
+}
 
 const adminTabs = [
   { label: 'Overview', icon: 'space_dashboard' },
@@ -15,6 +20,7 @@ const adminTabs = [
   { label: 'Blogs', icon: 'article' },
   { label: 'Comments', icon: 'rate_review' },
   { label: 'Messages', icon: 'mail' },
+  { label: 'AI Assistant', icon: 'auto_awesome' },
   { label: 'Settings', icon: 'settings' },
 ] satisfies { label: AdminTab; icon: string }[]
 
@@ -28,8 +34,17 @@ function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
   const [blogs, setBlogs] = usePersistentState('empoweredge-admin-blogs', adminBlogs)
   const [showEventForm, setShowEventForm] = useState(false)
   const [showBlogForm, setShowBlogForm] = useState(false)
-  const [eventDraft, setEventDraft] = useState({ name: '', date: '', registrations: '0', status: 'Draft' })
-  const [blogDraft, setBlogDraft] = useState({ title: '', author: 'Admin Team', status: 'Draft' })
+  const [adminChatDraft, setAdminChatDraft] = useState('')
+  const [adminChatMessageCount, setAdminChatMessageCount] = useState(1)
+  const [adminChatMessages, setAdminChatMessages] = useState<AdminChatMessage[]>([
+    {
+      id: 'admin-welcome',
+      role: 'assistant',
+      text: 'Hi Admin. Ask me about pending reviews, unread messages, event performance, draft content, or user status.',
+    },
+  ])
+  const [eventDraft, setEventDraft] = useState({ name: '', date: '', registrations: '0', status: 'Draft', image: '' })
+  const [blogDraft, setBlogDraft] = useState({ title: '', author: 'Admin Team', status: 'Draft', image: '' })
   const [comments, setComments] = usePersistentState('empoweredge-admin-comments', adminComments)
   const [messages, setMessages] = usePersistentState('empoweredge-admin-messages', adminMessages)
   const [siteSettings, setSiteSettings] = usePersistentState('empoweredge-admin-settings', {
@@ -58,6 +73,16 @@ function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
     window.setTimeout(() => setToast(''), 2600)
   }
 
+  const readImageFile = (file: File, onLoad: (image: string) => void) => {
+    const reader = new FileReader()
+    reader.addEventListener('load', () => {
+      if (typeof reader.result === 'string') {
+        onLoad(reader.result)
+      }
+    })
+    reader.readAsDataURL(file)
+  }
+
   const createEvent = () => {
     if (!eventDraft.name.trim() || !eventDraft.date.trim()) {
       return
@@ -71,9 +96,10 @@ function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
         date: eventDraft.date.trim(),
         registrations: Number(eventDraft.registrations) || 0,
         status: eventDraft.status,
+        image: eventDraft.image,
       },
     ])
-    setEventDraft({ name: '', date: '', registrations: '0', status: 'Draft' })
+    setEventDraft({ name: '', date: '', registrations: '0', status: 'Draft', image: '' })
     setShowEventForm(false)
     setSearchTerm('')
     showToast('Event created.')
@@ -92,9 +118,10 @@ function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
         author: blogDraft.author.trim(),
         comments: 0,
         status: blogDraft.status,
+        image: blogDraft.image,
       },
     ])
-    setBlogDraft({ title: '', author: 'Admin Team', status: 'Draft' })
+    setBlogDraft({ title: '', author: 'Admin Team', status: 'Draft', image: '' })
     setShowBlogForm(false)
     setSearchTerm('')
     showToast('Blog post created.')
@@ -170,25 +197,27 @@ function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
           <button className="primary-button" type="button" onClick={() => setTab('Events')}>Create event</button>
         </section>
 
-        <div className="dashboard-stats" aria-label="Admin statistics">
-          {adminStats.map((stat) => (
-            <article className={`dashboard-stat-card ${stat.tone}`} key={stat.label}>
-              <span className="material-symbols-outlined" aria-hidden="true">{stat.icon}</span>
-              <div>
-                <strong>{stat.value}</strong>
-                <p>{stat.label}</p>
-                <small>{stat.trend}</small>
-              </div>
-            </article>
-          ))}
-        </div>
-
         {activeTab === 'Overview' && (
-          <div className="admin-overview-grid">
-            <AdminTable title="Recent users" columns={['Name', 'Email', 'Role', 'Status']} rows={filteredUsers.slice(0, 4).map((user) => [user.name, user.email, user.role, user.status])} />
-            <AdminTable title="Upcoming events" columns={['Event', 'Date', 'Registrations', 'Status']} rows={filteredEvents.map((event) => [event.name, event.date, String(event.registrations), event.status])} />
-            <AdminTable title="Review queue" columns={['Author', 'Post', 'Status']} rows={filteredComments.map((comment) => [comment.author, comment.post, comment.status])} />
-          </div>
+          <>
+            <div className="dashboard-stats" aria-label="Admin statistics">
+              {adminStats.map((stat) => (
+                <article className={`dashboard-stat-card ${stat.tone}`} key={stat.label}>
+                  <span className="material-symbols-outlined" aria-hidden="true">{stat.icon}</span>
+                  <div>
+                    <strong>{stat.value}</strong>
+                    <p>{stat.label}</p>
+                    <small>{stat.trend}</small>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="admin-overview-grid">
+              <AdminTable title="Recent users" columns={['Name', 'Email', 'Role', 'Status']} rows={filteredUsers.slice(0, 4).map((user) => [user.name, user.email, user.role, user.status])} />
+              <AdminTable title="Upcoming events" columns={['Event', 'Date', 'Registrations', 'Status']} rows={filteredEvents.map((event) => [event.name, event.date, String(event.registrations), event.status])} />
+              <AdminTable title="Review queue" columns={['Author', 'Post', 'Status']} rows={filteredComments.map((comment) => [comment.author, comment.post, comment.status])} />
+            </div>
+          </>
         )}
 
         {activeTab === 'Users' && (
@@ -254,6 +283,21 @@ function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
                       <option>Published</option>
                     </select>
                   </label>
+                  <label className="admin-image-upload">
+                    Event image
+                    <input
+                      accept="image/*"
+                      type="file"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0]
+
+                        if (file) {
+                          readImageFile(file, (image) => setEventDraft((current) => ({ ...current, image })))
+                        }
+                      }}
+                    />
+                    {eventDraft.image && <img src={eventDraft.image} alt="Event preview" />}
+                  </label>
                   <button className="primary-button compact-button" type="submit">Create event</button>
                 </form>
               </section>
@@ -261,8 +305,9 @@ function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
             <AdminTable
               title="Event management"
               action={<button className="primary-button compact-button" type="button" onClick={() => setShowEventForm(true)}>New event</button>}
-              columns={['Event', 'Date', 'Registrations', 'Status', 'Action', 'Edit', 'Delete']}
+              columns={['Image', 'Event', 'Date', 'Registrations', 'Status', 'Action', 'Edit', 'Delete']}
               rows={filteredEvents.map((event) => [
+                <AdminImagePreview image={getAdminImage(event)} label={event.name} />,
                 event.name,
                 event.date,
                 String(event.registrations),
@@ -322,6 +367,21 @@ function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
                       <option>Published</option>
                     </select>
                   </label>
+                  <label className="admin-image-upload">
+                    Blog image
+                    <input
+                      accept="image/*"
+                      type="file"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0]
+
+                        if (file) {
+                          readImageFile(file, (image) => setBlogDraft((current) => ({ ...current, image })))
+                        }
+                      }}
+                    />
+                    {blogDraft.image && <img src={blogDraft.image} alt="Blog preview" />}
+                  </label>
                   <button className="primary-button compact-button" type="submit">Create post</button>
                 </form>
               </section>
@@ -329,8 +389,9 @@ function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
             <AdminTable
               title="Blog management"
               action={<button className="primary-button compact-button" type="button" onClick={() => setShowBlogForm(true)}>New post</button>}
-              columns={['Title', 'Author', 'Comments', 'Status', 'Action', 'Edit', 'Delete']}
+              columns={['Image', 'Title', 'Author', 'Comments', 'Status', 'Action', 'Edit', 'Delete']}
               rows={filteredBlogs.map((blog) => [
+                <AdminImagePreview image={getAdminImage(blog)} label={blog.title} />,
                 blog.title,
                 blog.author,
                 String(blog.comments),
@@ -411,6 +472,22 @@ function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
           />
         )}
 
+        {activeTab === 'AI Assistant' && (
+          <AdminAiAssistant
+            blogs={filteredBlogs}
+            chatDraft={adminChatDraft}
+            chatMessageCount={adminChatMessageCount}
+            chatMessages={adminChatMessages}
+            comments={filteredComments}
+            events={filteredEvents}
+            messages={filteredMessages}
+            setChatDraft={setAdminChatDraft}
+            setChatMessageCount={setAdminChatMessageCount}
+            setChatMessages={setAdminChatMessages}
+            users={filteredUsers}
+          />
+        )}
+
         {activeTab === 'Settings' && (
           <section className="dashboard-panel dashboard-wide-panel">
             <div className="dashboard-panel-heading">
@@ -446,6 +523,173 @@ type AdminTableProps = {
   rows: Array<Array<ReactNode>>
   action?: ReactNode
   emptyMessage?: string
+}
+
+type AdminAiAssistantProps = {
+  blogs: typeof adminBlogs
+  chatDraft: string
+  chatMessageCount: number
+  chatMessages: AdminChatMessage[]
+  comments: typeof adminComments
+  events: typeof adminEvents
+  messages: typeof adminMessages
+  setChatDraft: Dispatch<SetStateAction<string>>
+  setChatMessageCount: Dispatch<SetStateAction<number>>
+  setChatMessages: Dispatch<SetStateAction<AdminChatMessage[]>>
+  users: typeof adminUsers
+}
+
+function AdminAiAssistant({
+  blogs,
+  chatDraft,
+  chatMessageCount,
+  chatMessages,
+  comments,
+  events,
+  messages,
+  setChatDraft,
+  setChatMessageCount,
+  setChatMessages,
+  users,
+}: AdminAiAssistantProps) {
+  const sendMessage = (message: string) => {
+    const prompt = message.trim()
+
+    if (!prompt) {
+      return
+    }
+
+    const userMessage: AdminChatMessage = {
+      id: `admin-user-${chatMessageCount}`,
+      role: 'user',
+      text: prompt,
+    }
+    const assistantMessage: AdminChatMessage = {
+      id: `admin-assistant-${chatMessageCount}`,
+      role: 'assistant',
+      text: buildAdminChatbotReply(prompt, { blogs, comments, events, messages, users }),
+    }
+
+    setChatMessages((current) => [...current, userMessage, assistantMessage])
+    setChatMessageCount((current) => current + 1)
+    setChatDraft('')
+  }
+
+  return (
+    <section className="dashboard-panel dashboard-wide-panel ai-coach-panel" aria-labelledby="admin-ai-title">
+      <div className="dashboard-panel-heading">
+        <div>
+          <h2 id="admin-ai-title">AI Assistant</h2>
+          <p>Chat with an admin operations assistant</p>
+        </div>
+      </div>
+      <div className="ai-coach-layout">
+        <div className="ai-chat-shell admin-ai-chat">
+          <div className="ai-chat-header">
+            <span className="material-symbols-outlined" aria-hidden="true">admin_panel_settings</span>
+            <div>
+              <h3>Admin Assistant</h3>
+              <p>online</p>
+            </div>
+          </div>
+          <div className="ai-chat-messages" aria-live="polite">
+            {chatMessages.map((message) => (
+              <article className={`ai-chat-message ${message.role}`} key={message.id}>
+                <p>{message.text}</p>
+              </article>
+            ))}
+          </div>
+          <div className="ai-chat-suggestions" aria-label="Suggested admin questions">
+            {['What needs review?', 'Summarize unread messages', 'Which event needs attention?'].map((question) => (
+              <button key={question} type="button" onClick={() => sendMessage(question)}>
+                {question}
+              </button>
+            ))}
+          </div>
+          <form
+            className="ai-chat-form"
+            onSubmit={(event) => {
+              event.preventDefault()
+              sendMessage(chatDraft)
+            }}
+          >
+            <input
+              aria-label="Message admin AI assistant"
+              placeholder="Ask admin assistant..."
+              value={chatDraft}
+              onChange={(event) => setChatDraft(event.target.value)}
+            />
+            <button type="submit" aria-label="Send message">
+              <span className="material-symbols-outlined" aria-hidden="true">send</span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function buildAdminChatbotReply(
+  prompt: string,
+  context: {
+    blogs: typeof adminBlogs
+    comments: typeof adminComments
+    events: typeof adminEvents
+    messages: typeof adminMessages
+    users: typeof adminUsers
+  },
+) {
+  const normalizedPrompt = prompt.toLowerCase()
+  const pendingComments = context.comments.filter((comment) => comment.status === 'Pending')
+  const unreadMessages = context.messages.filter((message) => message.status === 'Unread')
+  const draftEvents = context.events.filter((event) => event.status === 'Draft')
+  const draftBlogs = context.blogs.filter((blog) => blog.status === 'Draft')
+  const suspendedUsers = context.users.filter((user) => user.status === 'Suspended')
+  const highestRegistrationEvent = [...context.events].sort((first, second) => second.registrations - first.registrations)[0]
+
+  if (normalizedPrompt.includes('review') || normalizedPrompt.includes('comment') || normalizedPrompt.includes('moderation')) {
+    return pendingComments.length > 0
+      ? `${pendingComments.length} comment${pendingComments.length === 1 ? '' : 's'} need review. Start with ${pendingComments[0].author}'s comment on "${pendingComments[0].post}".`
+      : 'There are no pending comments in the current review queue.'
+  }
+
+  if (normalizedPrompt.includes('message') || normalizedPrompt.includes('inbox') || normalizedPrompt.includes('unread')) {
+    return unreadMessages.length > 0
+      ? `${unreadMessages.length} message${unreadMessages.length === 1 ? '' : 's'} are unread. The first one is from ${unreadMessages[0].sender} about "${unreadMessages[0].subject}".`
+      : 'All contact messages are marked as read.'
+  }
+
+  if (normalizedPrompt.includes('event') || normalizedPrompt.includes('registration')) {
+    return highestRegistrationEvent
+      ? `${highestRegistrationEvent.name} has the most registrations at ${highestRegistrationEvent.registrations}. You also have ${draftEvents.length} draft event${draftEvents.length === 1 ? '' : 's'} that may need publishing.`
+      : 'There are no events in the current admin view.'
+  }
+
+  if (normalizedPrompt.includes('blog') || normalizedPrompt.includes('post') || normalizedPrompt.includes('content')) {
+    return draftBlogs.length > 0
+      ? `${draftBlogs.length} blog post${draftBlogs.length === 1 ? '' : 's'} are still drafts. Review "${draftBlogs[0].title}" first.`
+      : 'All visible blog posts are published.'
+  }
+
+  if (normalizedPrompt.includes('user') || normalizedPrompt.includes('member')) {
+    return suspendedUsers.length > 0
+      ? `${suspendedUsers.length} user${suspendedUsers.length === 1 ? '' : 's'} are suspended. Review ${suspendedUsers[0].name}'s account if this needs follow-up.`
+      : `There are ${context.users.length} users in the current view and none are suspended.`
+  }
+
+  return `Current priorities: ${pendingComments.length} pending reviews, ${unreadMessages.length} unread messages, ${draftEvents.length} draft events, and ${draftBlogs.length} draft blog posts.`
+}
+
+function AdminImagePreview({ image, label }: { image?: string; label: string }) {
+  return image ? (
+    <img className="admin-table-image" src={image} alt={`${label} preview`} />
+  ) : (
+    <span className="admin-image-placeholder">No image</span>
+  )
+}
+
+function getAdminImage(record: object) {
+  return 'image' in record && typeof record.image === 'string' ? record.image : ''
 }
 
 function AdminTable({ title, columns, rows, action, emptyMessage = 'No records found.' }: AdminTableProps) {

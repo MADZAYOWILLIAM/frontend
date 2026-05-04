@@ -1,13 +1,14 @@
-import { usePersistentState } from '../hooks/usePersistentState'
 import { upcomingEvents } from '../data/siteData'
+import type { NavigateTo } from '../types/navigation'
 
-function EventPage() {
-  const [registeredEvents, setRegisteredEvents] = usePersistentState<string[]>('empoweredge-registered-events', [])
+type EventPageProps = {
+  navigateTo: NavigateTo
+}
 
-  const toggleRegistration = (eventName: string) => {
-    setRegisteredEvents((current) =>
-      current.includes(eventName) ? current.filter((name) => name !== eventName) : [...current, eventName],
-    )
+function EventPage({ navigateTo }: EventPageProps) {
+  const goToDashboardEvents = () => {
+    window.localStorage.setItem('empoweredge-member-active-tab', JSON.stringify('Events'))
+    navigateTo('/dashboard')
   }
 
   return (
@@ -42,18 +43,20 @@ function EventPage() {
           {upcomingEvents.map((event) => (
             <article className="event-row" key={event.name}>
               <img className="event-row-image" src={event.image} alt={event.imageAlt} loading="lazy" decoding="async" />
-              <time>{event.date}</time>
-              <div>
+              <div className="blog-meta event-meta">
+                <time>{event.date}</time>
+                <span>{event.location}</span>
+              </div>
+              <div className="event-card-copy">
                 <h3>{event.name}</h3>
-                <p>{event.location}</p>
-                <span>{event.detail}</span>
+                <p>{event.detail}</p>
               </div>
               <button
-                className={registeredEvents.includes(event.name) ? 'table-action-button registered' : 'table-action-button'}
+                className="table-action-button"
                 type="button"
-                onClick={() => toggleRegistration(event.name)}
+                onClick={goToDashboardEvents}
               >
-                {registeredEvents.includes(event.name) ? 'Cancel' : 'Register'}
+                Register in dashboard
               </button>
             </article>
           ))}

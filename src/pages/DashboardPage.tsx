@@ -21,12 +21,18 @@ type DashboardPageProps = {
   session: AuthSession
 }
 
-type DashboardTab = 'Overview' | 'Events' | 'Mentorship' | 'Blog Activity' | 'Settings'
+type DashboardTab = 'Overview' | 'Events' | 'Mentorship' | 'AI Coach' | 'Blog Activity' | 'Settings'
+type ChatMessage = {
+  id: string
+  role: 'assistant' | 'user'
+  text: string
+}
 
 const dashboardTabs = [
   { label: 'Overview', icon: 'dashboard' },
   { label: 'Events', icon: 'event' },
   { label: 'Mentorship', icon: 'school' },
+  { label: 'AI Coach', icon: 'auto_awesome' },
   { label: 'Blog Activity', icon: 'forum' },
   { label: 'Settings', icon: 'settings' },
 ] satisfies { label: DashboardTab; icon: string }[]
@@ -38,6 +44,15 @@ function DashboardPage({ navigateTo, onSignOut, session }: DashboardPageProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [settingsMessage, setSettingsMessage] = useState('')
+  const [chatDraft, setChatDraft] = useState('')
+  const [chatMessageCount, setChatMessageCount] = useState(1)
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+    {
+      id: 'welcome',
+      role: 'assistant',
+      text: 'Hi, I am your Empoweredge AI Coach. Ask me what to do next, which event to join, or how to prepare for mentorship.',
+    },
+  ])
   const [userDetails, setUserDetails] = usePersistentState('empoweredge-member-details', {
     name: session.name,
     email: session.email,
@@ -202,27 +217,29 @@ function DashboardPage({ navigateTo, onSignOut, session }: DashboardPageProps) {
           </button>
         </section>
 
-        <div className="dashboard-stats" aria-label="Dashboard statistics">
-          {stats.map((stat) => (
-            <article className={`dashboard-stat-card ${stat.tone}`} key={stat.label}>
-              <span className="material-symbols-outlined" aria-hidden="true">{stat.icon}</span>
-              <div>
-                <strong>{stat.value}</strong>
-                <p>{stat.label}</p>
-                <small>{stat.trend}</small>
-              </div>
-            </article>
-          ))}
-        </div>
-
         {activeTab === 'Overview' && (
-          <div className="dashboard-grid">
-            <EventsPanel events={filteredEvents} eventStatuses={eventStatuses} updateEventStatus={updateEventStatus} />
-            <ProgressPanel progress={profileProgress} />
-            <QuickActionsPanel navigateTo={navigateTo} />
-            <TasksPanel tasks={tasks} setTasks={setTasks} />
-            <ActivityPanel />
-          </div>
+          <>
+            <div className="dashboard-stats" aria-label="Dashboard statistics">
+              {stats.map((stat) => (
+                <article className={`dashboard-stat-card ${stat.tone}`} key={stat.label}>
+                  <span className="material-symbols-outlined" aria-hidden="true">{stat.icon}</span>
+                  <div>
+                    <strong>{stat.value}</strong>
+                    <p>{stat.label}</p>
+                    <small>{stat.trend}</small>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="dashboard-grid">
+              <EventsPanel events={filteredEvents} eventStatuses={eventStatuses} updateEventStatus={updateEventStatus} />
+              <ProgressPanel progress={profileProgress} />
+              <QuickActionsPanel navigateTo={navigateTo} />
+              <TasksPanel tasks={tasks} setTasks={setTasks} />
+              <ActivityPanel />
+            </div>
+          </>
         )}
 
         {activeTab === 'Events' && (
@@ -255,6 +272,23 @@ function DashboardPage({ navigateTo, onSignOut, session }: DashboardPageProps) {
               ))}
             </div>
           </section>
+        )}
+
+        {activeTab === 'AI Coach' && (
+          <AiCoachPanel
+            role={userDetails.role}
+            events={filteredEvents}
+            eventStatuses={eventStatuses}
+            tasks={tasks}
+            profileProgress={profileProgress}
+            mentorship={filteredMentorship}
+            chatDraft={chatDraft}
+            chatMessages={chatMessages}
+            setChatDraft={setChatDraft}
+            setChatMessages={setChatMessages}
+            chatMessageCount={chatMessageCount}
+            setChatMessageCount={setChatMessageCount}
+          />
         )}
 
         {activeTab === 'Blog Activity' && (
@@ -413,6 +447,51 @@ function getInitials(name: string) {
     .toUpperCase() || 'EY'
 }
 
+type ChatContext = {
+  nextMentorship?: (typeof dashboardMentorship)[number]
+  openEvents: typeof dashboardEvents
+  pendingTasks: typeof dashboardTasks
+  profileProgress: number
+  registeredEvents: typeof dashboardEvents
+  role: string
+}
+
+function buildChatbotReply(prompt: string, context: ChatContext) {
+  const normalizedPrompt = prompt.toLowerCase()
+  const nextOpenEvent = context.openEvents[0]
+  const nextRegisteredEvent = context.registeredEvents[0]
+  const nextTask = context.pendingTasks[0]
+  const nextMentorship = context.nextMentorship
+
+  if (normalizedPrompt.includes('event') || normalizedPrompt.includes('join') || normalizedPrompt.includes('register')) {
+    if (nextOpenEvent) {
+      return `${nextOpenEvent.name} is the best next event to consider. It is at ${nextOpenEvent.location} on ${nextOpenEvent.date} at ${nextOpenEvent.time}. Open the Events tab and register there if it fits your schedule.`
+    }
+
+    return nextRegisteredEvent
+      ? `You are already registered for ${nextRegisteredEvent.name}. Focus on preparing for ${nextRegisteredEvent.date} and confirm your availability.`
+      : 'I do not see an open event in your current dashboard list. Contact the team for the next event recommendation.'
+  }
+
+  if (normalizedPrompt.includes('mentor') || normalizedPrompt.includes('mentorship') || normalizedPrompt.includes('prepare')) {
+    return nextMentorship
+      ? `For mentorship, prepare for ${nextMentorship.mentor}'s ${nextMentorship.focus.toLowerCase()} session. Your progress is ${nextMentorship.progress}%, so bring one question, one blocker, and one outcome you want from the next session on ${nextMentorship.nextSession}.`
+      : 'I do not see an active mentorship session right now. Ask the team to match you with a mentor based on your current goals.'
+  }
+
+  if (normalizedPrompt.includes('task') || normalizedPrompt.includes('next') || normalizedPrompt.includes('week')) {
+    return nextTask
+      ? `Your next best step is: ${nextTask.label}. After that, check your profile progress and register for one event that supports your goal.`
+      : `You have no pending tasks. Since your profile readiness is ${context.profileProgress}%, use this week to prepare for an event or ask for new mentorship goals.`
+  }
+
+  if (normalizedPrompt.includes('profile') || normalizedPrompt.includes('progress')) {
+    return `Your profile readiness is ${context.profileProgress}%. If you want better recommendations, keep your role, contact details, reminders, and mentorship preferences updated.`
+  }
+
+  return `Based on your dashboard, I recommend focusing on ${nextTask?.label ?? nextOpenEvent?.name ?? nextMentorship?.focus ?? 'one clear weekly goal'}. You can ask me about events, mentorship, tasks, or profile progress.`
+}
+
 type EventPanelProps = {
   events: typeof dashboardEvents
   eventStatuses: Record<string, string>
@@ -459,6 +538,124 @@ function EventsPanel({ events, eventStatuses, updateEventStatus }: EventPanelPro
             </button>
           </article>
         ))}
+      </div>
+    </section>
+  )
+}
+
+type AiCoachPanelProps = {
+  chatDraft: string
+  chatMessageCount: number
+  chatMessages: ChatMessage[]
+  events: typeof dashboardEvents
+  eventStatuses: Record<string, string>
+  mentorship: typeof dashboardMentorship
+  profileProgress: number
+  role: string
+  setChatDraft: Dispatch<SetStateAction<string>>
+  setChatMessageCount: Dispatch<SetStateAction<number>>
+  setChatMessages: Dispatch<SetStateAction<ChatMessage[]>>
+  tasks: typeof dashboardTasks
+}
+
+function AiCoachPanel({
+  chatDraft,
+  chatMessageCount,
+  chatMessages,
+  events,
+  eventStatuses,
+  mentorship,
+  profileProgress,
+  role,
+  setChatDraft,
+  setChatMessageCount,
+  setChatMessages,
+  tasks,
+}: AiCoachPanelProps) {
+  const openEvents = events.filter((event) => eventStatuses[event.id] !== 'Registered')
+  const registeredEvents = events.filter((event) => eventStatuses[event.id] === 'Registered')
+  const pendingTasks = tasks.filter((task) => !task.done)
+  const nextMentorship = mentorship.reduce((best, item) => (item.progress < best.progress ? item : best), mentorship[0])
+  const sendMessage = (message: string) => {
+    const prompt = message.trim()
+
+    if (!prompt) {
+      return
+    }
+
+    const userMessage: ChatMessage = {
+      id: `user-${chatMessageCount}`,
+      role: 'user',
+      text: prompt,
+    }
+    const assistantMessage: ChatMessage = {
+      id: `assistant-${chatMessageCount}`,
+      role: 'assistant',
+      text: buildChatbotReply(prompt, {
+        nextMentorship,
+        openEvents,
+        pendingTasks,
+        profileProgress,
+        registeredEvents,
+        role,
+      }),
+    }
+
+    setChatMessages((current) => [...current, userMessage, assistantMessage])
+    setChatMessageCount((current) => current + 1)
+    setChatDraft('')
+  }
+
+  return (
+    <section className="dashboard-panel dashboard-wide-panel ai-coach-panel" aria-labelledby="ai-coach-title">
+      <div className="dashboard-panel-heading">
+        <div>
+          <h2 id="ai-coach-title">AI Coach</h2>
+          <p>Chat with your dashboard assistant</p>
+        </div>
+      </div>
+
+      <div className="ai-coach-layout">
+        <div className="ai-chat-shell">
+          <div className="ai-chat-header">
+            <span className="material-symbols-outlined" aria-hidden="true">smart_toy</span>
+            <div>
+              <h3>Empoweredge Assistant</h3>
+              <p>online</p>
+            </div>
+          </div>
+          <div className="ai-chat-messages" aria-live="polite">
+            {chatMessages.map((message) => (
+              <article className={`ai-chat-message ${message.role}`} key={message.id}>
+                <p>{message.text}</p>
+              </article>
+            ))}
+          </div>
+          <div className="ai-chat-suggestions" aria-label="Suggested questions">
+            {['What should I do next?', 'Which event should I join?', 'Help me prepare for mentorship'].map((question) => (
+              <button key={question} type="button" onClick={() => sendMessage(question)}>
+                {question}
+              </button>
+            ))}
+          </div>
+          <form
+            className="ai-chat-form"
+            onSubmit={(event) => {
+              event.preventDefault()
+              sendMessage(chatDraft)
+            }}
+          >
+            <input
+              aria-label="Message AI Coach"
+              placeholder="Ask your AI Coach..."
+              value={chatDraft}
+              onChange={(event) => setChatDraft(event.target.value)}
+            />
+            <button type="submit" aria-label="Send message">
+              <span className="material-symbols-outlined" aria-hidden="true">send</span>
+            </button>
+          </form>
+        </div>
       </div>
     </section>
   )
