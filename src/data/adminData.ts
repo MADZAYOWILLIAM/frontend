@@ -1,37 +1,48 @@
-export const adminStats = [
-  { label: 'Total users', value: '1,284', icon: 'group', trend: '+34 this month', tone: 'blue' },
-  { label: 'Published events', value: '18', icon: 'event_available', trend: '5 upcoming', tone: 'green' },
-  { label: 'Blog posts', value: '32', icon: 'article', trend: '4 drafts', tone: 'pink' },
-  { label: 'Pending reviews', value: '11', icon: 'rate_review', trend: 'Needs action', tone: 'amber' },
-]
+import { api } from './api'
 
-export const adminUsers = [
-  { id: 'u-001', name: 'Amina Hassan', email: 'amina@example.com', role: 'Mentor', status: 'Active' },
-  { id: 'u-002', name: 'Brian Mwangi', email: 'brian@example.com', role: 'Youth Member', status: 'Active' },
-  { id: 'u-003', name: 'Grace Achieng', email: 'grace@example.com', role: 'Volunteer', status: 'Suspended' },
-  { id: 'u-004', name: 'David Otieno', email: 'david@example.com', role: 'Youth Member', status: 'Active' },
-]
+export const getAdminStats = async () => {
+  const [users, events, blogs] = await Promise.all([
+    api.auth.users(),
+    api.events.list(),
+    api.blogs.list(),
+  ]);
+  return [
+    { label: 'Total users', value: String(users.length), icon: 'group', trend: 'Live count', tone: 'blue' },
+    { label: 'Published events', value: String(events.length), icon: 'event_available', trend: 'Upcoming', tone: 'green' },
+    { label: 'Blog posts', value: String(blogs.length), icon: 'article', trend: 'Active', tone: 'pink' },
+    { label: 'System activity', value: 'Logs', icon: 'rate_review', trend: 'Audited', tone: 'amber' },
+  ];
+};
 
-export const adminEvents = [
-  { id: 'e-001', name: 'Neighborhood Care Day', date: 'May 18', registrations: 84, status: 'Published' },
-  { id: 'e-002', name: 'Youth Skills Workshop', date: 'Jun 02', registrations: 42, status: 'Published' },
-  { id: 'e-003', name: 'Mentor Orientation', date: 'Jun 10', registrations: 18, status: 'Draft' },
-]
+export const getAdminUsers = async () => {
+  const users = await api.auth.users();
+  return users.map(u => ({
+    id: u.id,
+    name: `${u.first_name} ${u.second_name}`,
+    email: u.email,
+    role: u.role || 'user',
+    status: u.is_verified ? 'Active' : 'Unverified',
+  }));
+};
 
-export const adminBlogs = [
-  { id: 'b-001', title: 'How local events become long-term support systems', author: 'Admin Team', comments: 3, status: 'Published' },
-  { id: 'b-002', title: 'What young leaders need after the first workshop', author: 'Mentor Desk', comments: 1, status: 'Published' },
-  { id: 'b-003', title: 'Volunteer stories from the field', author: 'Admin Team', comments: 0, status: 'Draft' },
-]
+export const getAdminEvents = async () => {
+  const events = await api.events.list();
+  return events.map(e => ({
+    id: e.id,
+    name: e.title,
+    date: new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit' }),
+    registrations: e.capacity,
+    status: 'Published',
+  }));
+};
 
-export const adminComments = [
-  { id: 'c-001', author: 'John Doe', post: 'How local events become long-term support systems', text: 'The follow-up piece is what makes events feel meaningful.', status: 'Pending' },
-  { id: 'c-002', author: 'Jane Smith', post: 'What young leaders need after the first workshop', text: 'Consistency after the workshop is so important.', status: 'Approved' },
-  { id: 'c-003', author: 'Mary Wanjiku', post: 'Volunteer stories from the field', text: 'I would like to volunteer next month.', status: 'Pending' },
-]
-
-export const adminMessages = [
-  { id: 'm-001', sender: 'Kevin N.', subject: 'Volunteer availability', status: 'Unread' },
-  { id: 'm-002', sender: 'Sarah K.', subject: 'Mentorship request', status: 'Read' },
-  { id: 'm-003', sender: 'Community Hall', subject: 'Venue confirmation', status: 'Unread' },
-]
+export const getAdminBlogs = async () => {
+  const blogs = await api.blogs.list();
+  return blogs.map(b => ({
+    id: b.id || '',
+    title: b.title,
+    author: 'Staff',
+    comments: b.comments?.length || 0,
+    status: 'Published',
+  }));
+};

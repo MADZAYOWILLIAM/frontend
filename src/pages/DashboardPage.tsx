@@ -1,17 +1,19 @@
 import type { CSSProperties, Dispatch, SetStateAction } from 'react'
 import { useMemo, useState } from 'react'
 import {
-  dashboardActivity,
-  dashboardBlogMetrics,
-  dashboardEvents,
   dashboardMentorship,
   dashboardNotifications,
   dashboardQuickActions,
   dashboardSettings,
-  dashboardStats,
   dashboardTasks,
+  getDashboardActivity,
+  getDashboardBlogMetrics,
+  getDashboardEvents,
+  getDashboardStats,
 } from '../data/dashboardData'
 import { usePersistentState } from '../hooks/usePersistentState'
+import { useApi } from '../hooks/useApi'
+import { api } from '../data/api'
 import type { AuthSession } from '../types/auth'
 import type { NavigateTo } from '../types/navigation'
 
@@ -27,6 +29,7 @@ type ChatMessage = {
   role: 'assistant' | 'user'
   text: string
 }
+type DashboardEvent = Awaited<ReturnType<typeof getDashboardEvents>>[number]
 
 const dashboardTabs = [
   { label: 'Overview', icon: 'dashboard' },
@@ -38,6 +41,12 @@ const dashboardTabs = [
 ] satisfies { label: DashboardTab; icon: string }[]
 
 function DashboardPage({ navigateTo, onSignOut, session }: DashboardPageProps) {
+  const { data: apiStats, isLoading: statsLoading } = useApi(getDashboardStats)
+  const { data: apiEvents } = useApi(getDashboardEvents)
+  const { data: apiActivity } = useApi(getDashboardActivity)
+  const { data: apiBlogMetrics } = useApi(getDashboardBlogMetrics)
+  const { data: userProfile, refetch: refetchMe } = useApi(api.auth.me)
+
   const [activeTab, setActiveTab] = usePersistentState<DashboardTab>('empoweredge-member-active-tab', 'Overview')
   const [searchTerm, setSearchTerm] = useState('')
   const [showNotifications, setShowNotifications] = useState(false)
@@ -53,50 +62,73 @@ function DashboardPage({ navigateTo, onSignOut, session }: DashboardPageProps) {
       text: 'Hi, I am your Empoweredge AI Coach. Ask me what to do next, which event to join, or how to prepare for mentorship.',
     },
   ])
+  const [eventStatuses, setEventStatuses] = usePersistentState<Record<string, string>>(
+    'empoweredge-member-event-statuses',
+    () => Object.fromEntries((apiEvents || []).map((event) => [event.id, event.status])),
+  )
+  const [tasks, setTasks] = usePersistentState('empoweredge-member-tasks', dashboardTasks)
+  const [settings, setSettings] = usePersistentState('empoweredge-member-settings', dashboardSettings)
   const [userDetails, setUserDetails] = usePersistentState('empoweredge-member-details', {
     name: session.name,
     email: session.email,
     phone: '+254 718548376',
     role: 'Youth Member',
   })
-  const [eventStatuses, setEventStatuses] = usePersistentState<Record<string, string>>(
-    'empoweredge-member-event-statuses',
-    () => Object.fromEntries(dashboardEvents.map((event) => [event.id, event.status])),
-  )
-  const [tasks, setTasks] = usePersistentState('empoweredge-member-tasks', dashboardTasks)
-  const [settings, setSettings] = usePersistentState('empoweredge-member-settings', dashboardSettings)
 
   const normalizedSearch = searchTerm.trim().toLowerCase()
   const completedTasks = tasks.filter((task) => task.done).length
-  const enabledSettings = settings.filter((setting) => setting.enabled).length
-  const profileProgress = Math.round(((completedTasks + enabledSettings) / (tasks.length + settings.length)) * 100)
+
+  const profileProgress = useMemo(() => {
+    if (!userProfile) return 0
+    const criteria = [
+      !!userProfile.first_name,
+      !!userProfile.second_name,
+      !!userProfile.email,
+      !!userProfile.role,
+      !!userProfile.avatar_url,
+      userProfile.is_verified,
+      (apiEvents || []).length > 0,
+    ]
+    const metCriteriaCount = criteria.filter(Boolean).length
+    return Math.round((metCriteriaCount / criteria.length) * 100)
+  }, [userProfile, apiEvents])
+
   const registeredEvents = Object.values(eventStatuses).filter((status) => status === 'Registered').length
 
-  const stats = dashboardStats.map((stat) =>
-    stat.label === 'Events joined'
-      ? { ...stat, value: String(registeredEvents) }
-      : stat.label === 'Tasks completed'
-        ? { ...stat, value: String(completedTasks) }
-        : stat,
+  const stats = useMemo(
+    () =>
+      (apiStats || []).map((stat) =>
+        stat.label === 'Events joined'
+          ? { ...stat, value: String(registeredEvents) }
+          : stat.label === 'Tasks completed'
+            ? { ...stat, value: String(completedTasks) }
+            : stat,
+      ),
+    [apiStats, registeredEvents, completedTasks],
   )
 
   const filteredEvents = useMemo(
     () =>
-      dashboardEvents.filter((event) =>
+      (apiEvents || []).filter((event) =>
         [event.name, event.location, event.owner, eventStatuses[event.id]]
           .join(' ')
           .toLowerCase()
           .includes(normalizedSearch),
       ),
-    [eventStatuses, normalizedSearch],
+    [apiEvents, eventStatuses, normalizedSearch],
   )
 
-  const filteredMentorship = dashboardMentorship.filter((session) =>
-    [session.mentor, session.focus, session.nextSession].join(' ').toLowerCase().includes(normalizedSearch),
+  const filteredMentorship = useMemo(
+    () =>
+      dashboardMentorship.filter((session) =>
+        [session.mentor, session.focus, session.nextSession].join(' ').toLowerCase().includes(normalizedSearch),
+      ),
+    [normalizedSearch],
   )
 
-  const filteredBlogs = dashboardBlogMetrics.filter((blog) =>
-    [blog.title, blog.status].join(' ').toLowerCase().includes(normalizedSearch),
+  const filteredBlogs = useMemo(
+    () => (apiBlogMetrics || []).filter((blog) => [blog.title, blog.status].join(' ').toLowerCase().includes(normalizedSearch)),
+    [apiBlogMetrics, normalizedSearch],
   )
 
   const updateEventStatus = (eventId: string, status: string) => {
@@ -132,10 +164,10 @@ function DashboardPage({ navigateTo, onSignOut, session }: DashboardPageProps) {
           </button>
         </div>
         <div className="dashboard-profile">
-          <span className="dashboard-avatar">{getInitials(userDetails.name)}</span>
+          <span className="dashboard-avatar">{userProfile ? getInitials(`${userProfile.first_name} ${userProfile.second_name}`) : getInitials(userDetails.name)}</span>
           <div>
-            <strong>{userDetails.name}</strong>
-            <span>{userDetails.role} · Active</span>
+            <strong>{userProfile ? `${userProfile.first_name} ${userProfile.second_name}` : session.name}</strong>
+            <span>{userProfile?.role || 'Member'} · Active</span>
           </div>
         </div>
         <nav className="dashboard-menu">
@@ -156,7 +188,11 @@ function DashboardPage({ navigateTo, onSignOut, session }: DashboardPageProps) {
           ))}
         </nav>
         <div className="dashboard-sidebar-footer">
-          <button className="logout-button" type="button" onClick={onSignOut} title="Log out">
+          <button className="logout-button" type="button" onClick={async () => {
+            await api.auth.logout()
+            refetchMe()
+            onSignOut()
+          }} title="Log out">
             <span className="material-symbols-outlined" aria-hidden="true">logout</span>
             <span>Log out</span>
           </button>
@@ -220,7 +256,7 @@ function DashboardPage({ navigateTo, onSignOut, session }: DashboardPageProps) {
         {activeTab === 'Overview' && (
           <>
             <div className="dashboard-stats" aria-label="Dashboard statistics">
-              {stats.map((stat) => (
+              {(statsLoading ? [] : stats).map((stat) => (
                 <article className={`dashboard-stat-card ${stat.tone}`} key={stat.label}>
                   <span className="material-symbols-outlined" aria-hidden="true">{stat.icon}</span>
                   <div>
@@ -237,7 +273,7 @@ function DashboardPage({ navigateTo, onSignOut, session }: DashboardPageProps) {
               <ProgressPanel progress={profileProgress} />
               <QuickActionsPanel navigateTo={navigateTo} />
               <TasksPanel tasks={tasks} setTasks={setTasks} />
-              <ActivityPanel />
+              <ActivityPanel activity={apiActivity || []} />
             </div>
           </>
         )}
@@ -276,7 +312,7 @@ function DashboardPage({ navigateTo, onSignOut, session }: DashboardPageProps) {
 
         {activeTab === 'AI Coach' && (
           <AiCoachPanel
-            role={userDetails.role}
+            role={userProfile?.role || 'user'}
             events={filteredEvents}
             eventStatuses={eventStatuses}
             tasks={tasks}
@@ -339,11 +375,10 @@ function DashboardPage({ navigateTo, onSignOut, session }: DashboardPageProps) {
                       <button
                         className="danger-button"
                         type="button"
-                        onClick={() => {
-                          window.localStorage.removeItem('empoweredge-member-details')
-                          window.localStorage.removeItem('empoweredge-member-event-statuses')
-                          window.localStorage.removeItem('empoweredge-member-tasks')
-                          window.localStorage.removeItem('empoweredge-member-settings')
+                        onClick={async () => {
+                          if (userProfile) {
+                            await api.auth.deleteUser(userProfile.id)
+                          }
                           onSignOut()
                         }}
                       >
@@ -449,10 +484,10 @@ function getInitials(name: string) {
 
 type ChatContext = {
   nextMentorship?: (typeof dashboardMentorship)[number]
-  openEvents: typeof dashboardEvents
+  openEvents: DashboardEvent[]
   pendingTasks: typeof dashboardTasks
   profileProgress: number
-  registeredEvents: typeof dashboardEvents
+  registeredEvents: DashboardEvent[]
   role: string
 }
 
@@ -493,7 +528,7 @@ function buildChatbotReply(prompt: string, context: ChatContext) {
 }
 
 type EventPanelProps = {
-  events: typeof dashboardEvents
+  events: DashboardEvent[]
   eventStatuses: Record<string, string>
   updateEventStatus: (eventId: string, status: string) => void
 }
@@ -547,7 +582,7 @@ type AiCoachPanelProps = {
   chatDraft: string
   chatMessageCount: number
   chatMessages: ChatMessage[]
-  events: typeof dashboardEvents
+  events: DashboardEvent[]
   eventStatuses: Record<string, string>
   mentorship: typeof dashboardMentorship
   profileProgress: number
@@ -731,14 +766,14 @@ function TasksPanel({ tasks, setTasks }: TasksPanelProps) {
   )
 }
 
-function ActivityPanel() {
+function ActivityPanel({ activity }: { activity: any[] }) {
   return (
     <section className="dashboard-panel dashboard-activity-panel" aria-labelledby="dashboard-activity-title">
       <div className="dashboard-panel-heading">
         <h2 id="dashboard-activity-title">Recent activity</h2>
       </div>
       <div className="dashboard-activity-list">
-        {dashboardActivity.map((item) => (
+        {activity.map((item) => (
           <article className="dashboard-activity-item" key={item.title}>
             <span />
             <div>

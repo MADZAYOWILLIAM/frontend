@@ -1,10 +1,11 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import { useMemo, useState } from 'react'
-import { adminBlogs, adminComments, adminEvents, adminMessages, adminStats, adminUsers } from '../data/adminData'
+import { getAdminBlogs, getAdminEvents, getAdminStats, getAdminUsers } from '../data/adminData'
 import { usePersistentState } from '../hooks/usePersistentState'
-type AdminDashboardPageProps = {
-  onSignOut: () => void
-}
+import { useApi, useMutation } from '../hooks/useApi'
+import { useToast } from '../context/ToastContext'
+import type { Role } from '../data/api'
+import { api } from '../data/api'
 
 type AdminTab = 'Overview' | 'Users' | 'Events' | 'Blogs' | 'Comments' | 'Messages' | 'AI Assistant' | 'Settings'
 type AdminChatMessage = {
@@ -24,14 +25,39 @@ const adminTabs = [
   { label: 'Settings', icon: 'settings' },
 ] satisfies { label: AdminTab; icon: string }[]
 
+type AdminDashboardPageProps = {
+  onSignOut: () => void
+}
+
+type AdminComment = {
+  id: string
+  author: string
+  post: string
+  text: string
+  status: 'Pending' | 'Approved' | string
+}
+
+type AdminMessage = {
+  id: string
+  sender: string
+  subject: string
+  status: 'Unread' | 'Read' | string
+}
+
+type AdminUser = Awaited<ReturnType<typeof getAdminUsers>>[number]
+type AdminEvent = Awaited<ReturnType<typeof getAdminEvents>>[number]
+type AdminBlog = Awaited<ReturnType<typeof getAdminBlogs>>[number]
+
 function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
+  const { showToast } = useToast()
+  const { data: user, refetch: refetchMe } = useApi(api.auth.me)
+  const { data: stats, isLoading: statsLoading } = useApi(getAdminStats)
+  const { data: apiUsers, isLoading: usersLoading, refetch: refetchUsers } = useApi(getAdminUsers)
+  const { data: apiEvents, refetch: refetchEvents } = useApi(getAdminEvents)
+  const { data: apiBlogs, refetch: refetchBlogs } = useApi(getAdminBlogs)
   const [activeTab, setActiveTab] = usePersistentState<AdminTab>('empoweredge-admin-active-tab', 'Overview')
   const [searchTerm, setSearchTerm] = useState('')
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-  const [toast, setToast] = useState('')
-  const [users, setUsers] = usePersistentState('empoweredge-admin-users', adminUsers)
-  const [events, setEvents] = usePersistentState('empoweredge-admin-events', adminEvents)
-  const [blogs, setBlogs] = usePersistentState('empoweredge-admin-blogs', adminBlogs)
   const [showEventForm, setShowEventForm] = useState(false)
   const [showBlogForm, setShowBlogForm] = useState(false)
   const [adminChatDraft, setAdminChatDraft] = useState('')
@@ -43,34 +69,101 @@ function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
       text: 'Hi Admin. Ask me about pending reviews, unread messages, event performance, draft content, or user status.',
     },
   ])
-  const [eventDraft, setEventDraft] = useState({ name: '', date: '', registrations: '0', status: 'Draft', image: '' })
+  const [eventDraft, setEventDraft] = useState<{ name: string; date: string; registrations: string; status: string; image: string; file: File | null }>({ 
+    name: '', date: '', registrations: '0', status: 'Draft', image: '', file: null })
   const [blogDraft, setBlogDraft] = useState({ title: '', author: 'Admin Team', status: 'Draft', image: '' })
-  const [comments, setComments] = usePersistentState('empoweredge-admin-comments', adminComments)
-  const [messages, setMessages] = usePersistentState('empoweredge-admin-messages', adminMessages)
+  const [comments, setComments] = usePersistentState<AdminComment[]>('empoweredge-admin-comments', [])
+  const [messages, setMessages] = usePersistentState<AdminMessage[]>('empoweredge-admin-messages', [])
   const [siteSettings, setSiteSettings] = usePersistentState('empoweredge-admin-settings', {
     siteName: 'Empoweredge Youth Club',
     contactEmail: 'empoweredgeyouthsclub@gmail.com',
     publishModeration: true,
   })
 
+  const { mutate: deleteUser } = useMutation(api.auth.deleteUser, {
+    onSuccess: () => {
+      showToast('User deleted successfully.', 'success')
+      refetchUsers()
+    },
+  })
+
+  const { mutate: updateRole } = useMutation(api.auth.updateUserRole, {
+    onSuccess: () => {
+      showToast('User role updated.', 'success')
+      refetchUsers()
+    },
+  })
+
+  const { mutate: deleteEvent } = useMutation(api.events.delete, {
+    onSuccess: () => {
+      showToast('Event deleted.', 'success')
+      refetchEvents()
+    },
+  })
+
+  const { mutate: updateEvent } = useMutation(api.events.update, {
+    onSuccess: () => {
+      showToast('Event updated.', 'success')
+      refetchEvents()
+    },
+  })
+
+  const { mutate: deleteBlog } = useMutation(api.blogs.delete, {
+    onSuccess: () => {
+      showToast('Blog post deleted.', 'success')
+      refetchBlogs()
+    },
+  })
+
+  const { mutate: updateBlog } = useMutation(api.blogs.update, {
+    onSuccess: () => {
+      showToast('Blog post updated.', 'success')
+      refetchBlogs()
+    },
+  })
+
+  const { mutate: performCreateEvent } = useMutation(api.events.create, {
+    onSuccess: () => {
+      showToast('Event created successfully.', 'success')
+      refetchEvents()
+      setShowEventForm(false)
+      setEventDraft({ name: '', date: '', registrations: '0', status: 'Draft', image: '', file: null })
+    },
+  })
+
+  const { mutate: performCreateBlog } = useMutation(api.blogs.create, {
+    onSuccess: () => {
+      showToast('Blog post created.', 'success')
+      refetchBlogs()
+      setShowBlogForm(false)
+    },
+  })
+
   const normalizedSearch = searchTerm.trim().toLowerCase()
   const filteredUsers = useMemo(
-    () => users.filter((user) => Object.values(user).join(' ').toLowerCase().includes(normalizedSearch)),
-    [normalizedSearch, users],
+    () => (apiUsers || []).filter((u) => Object.values(u).join(' ').toLowerCase().includes(normalizedSearch)),
+    [normalizedSearch, apiUsers],
   )
-  const filteredEvents = events.filter((event) => Object.values(event).join(' ').toLowerCase().includes(normalizedSearch))
-  const filteredBlogs = blogs.filter((blog) => Object.values(blog).join(' ').toLowerCase().includes(normalizedSearch))
-  const filteredComments = comments.filter((comment) => Object.values(comment).join(' ').toLowerCase().includes(normalizedSearch))
-  const filteredMessages = messages.filter((message) => Object.values(message).join(' ').toLowerCase().includes(normalizedSearch))
+  const filteredEvents = useMemo(
+    () => (apiEvents || []).filter((event) => Object.values(event).join(' ').toLowerCase().includes(normalizedSearch)),
+    [apiEvents, normalizedSearch],
+  )
+  const filteredBlogs = useMemo(
+    () => (apiBlogs || []).filter((blog) => Object.values(blog).join(' ').toLowerCase().includes(normalizedSearch)),
+    [apiBlogs, normalizedSearch],
+  )
+  const filteredComments = useMemo(
+    () => comments.filter((comment) => Object.values(comment).join(' ').toLowerCase().includes(normalizedSearch)),
+    [comments, normalizedSearch],
+  )
+  const filteredMessages = useMemo(
+    () => messages.filter((message) => Object.values(message).join(' ').toLowerCase().includes(normalizedSearch)),
+    [messages, normalizedSearch],
+  )
 
   const setTab = (tab: AdminTab) => {
     setActiveTab(tab)
     setIsSidebarOpen(false)
-  }
-
-  const showToast = (message: string) => {
-    setToast(message)
-    window.setTimeout(() => setToast(''), 2600)
   }
 
   const readImageFile = (file: File, onLoad: (image: string) => void) => {
@@ -88,21 +181,13 @@ function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
       return
     }
 
-    setEvents((current) => [
-      ...current,
-      {
-        id: `e-${Date.now()}`,
-        name: eventDraft.name.trim(),
-        date: eventDraft.date.trim(),
-        registrations: Number(eventDraft.registrations) || 0,
-        status: eventDraft.status,
-        image: eventDraft.image,
-      },
-    ])
-    setEventDraft({ name: '', date: '', registrations: '0', status: 'Draft', image: '' })
-    setShowEventForm(false)
-    setSearchTerm('')
-    showToast('Event created.')
+    performCreateEvent({
+      title: eventDraft.name,
+      description: 'Community event organized by the foundation.',
+      location: 'Kilifi, Mtwapa',
+      capacity: Number(eventDraft.registrations),
+      image: eventDraft.file
+    })
   }
 
   const createBlog = () => {
@@ -110,21 +195,10 @@ function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
       return
     }
 
-    setBlogs((current) => [
-      ...current,
-      {
-        id: `b-${Date.now()}`,
-        title: blogDraft.title.trim(),
-        author: blogDraft.author.trim(),
-        comments: 0,
-        status: blogDraft.status,
-        image: blogDraft.image,
-      },
-    ])
-    setBlogDraft({ title: '', author: 'Admin Team', status: 'Draft', image: '' })
-    setShowBlogForm(false)
-    setSearchTerm('')
-    showToast('Blog post created.')
+    performCreateBlog({
+      title: blogDraft.title,
+      description: 'Latest updates from the field.',
+    })
   }
 
   return (
@@ -146,10 +220,12 @@ function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
           </button>
         </div>
         <div className="dashboard-profile">
-          <span className="dashboard-avatar">AD</span>
+          <span className="dashboard-avatar">
+            {user ? `${user.first_name[0]}${user.second_name[0]}`.toUpperCase() : 'AD'}
+          </span>
           <div>
-            <strong>Admin User</strong>
-            <span>Platform Admin</span>
+            <strong>{user ? `${user.first_name} ${user.second_name}` : 'Admin User'}</strong>
+            <span>{user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Platform Admin'}</span>
           </div>
         </div>
         <nav className="dashboard-menu">
@@ -161,7 +237,11 @@ function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
           ))}
         </nav>
         <div className="dashboard-sidebar-footer">
-          <button className="logout-button" type="button" onClick={onSignOut}>
+          <button className="logout-button" type="button" onClick={async () => {
+            await api.auth.logout()
+            refetchMe()
+            onSignOut()
+          }}>
             <span className="material-symbols-outlined" aria-hidden="true">logout</span>
             <span>Log out</span>
           </button>
@@ -169,7 +249,6 @@ function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
       </aside>
 
       <div className="dashboard-main">
-        {toast && <div className="toast-message" role="status">{toast}</div>}
         <header className="dashboard-topbar">
           <button className="dashboard-menu-button" type="button" aria-label="Open admin menu" onClick={() => setIsSidebarOpen(true)}>
             <span className="material-symbols-outlined" aria-hidden="true">menu</span>
@@ -200,16 +279,22 @@ function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
         {activeTab === 'Overview' && (
           <>
             <div className="dashboard-stats" aria-label="Admin statistics">
-              {adminStats.map((stat) => (
-                <article className={`dashboard-stat-card ${stat.tone}`} key={stat.label}>
-                  <span className="material-symbols-outlined" aria-hidden="true">{stat.icon}</span>
-                  <div>
-                    <strong>{stat.value}</strong>
-                    <p>{stat.label}</p>
-                    <small>{stat.trend}</small>
-                  </div>
-                </article>
-              ))}
+              {statsLoading
+                ? [...Array(4)].map((_, i) => (
+                    <article className="dashboard-stat-card loading-skeleton" key={i} style={{ opacity: 0.5 }}>
+                      <div style={{ height: '48px', width: '100%', background: 'var(--border-color, #e2e8f0)', borderRadius: '8px' }} />
+                    </article>
+                  ))
+                : (stats || []).map((stat) => (
+                    <article className={`dashboard-stat-card ${stat.tone}`} key={stat.label}>
+                      <span className="material-symbols-outlined" aria-hidden="true">{stat.icon}</span>
+                      <div>
+                        <strong>{stat.value}</strong>
+                        <p>{stat.label}</p>
+                        <small>{stat.trend}</small>
+                      </div>
+                    </article>
+                  ))}
             </div>
 
             <div className="admin-overview-grid">
@@ -224,28 +309,28 @@ function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
           <AdminTable
             title="User management"
             columns={['Name', 'Email', 'Role', 'Status', 'Action', 'Edit']}
-            rows={filteredUsers.map((user) => [
+            rows={usersLoading ? [] : filteredUsers.map((user) => [
               user.name,
               user.email,
               user.role,
               user.status,
-              <button className="table-action-button" type="button" onClick={() => {
-                setUsers((current) => current.map((item) => item.id === user.id ? { ...item, status: item.status === 'Active' ? 'Suspended' : 'Active' } : item))
-                showToast('User status updated.')
+              <button className="table-action-button danger-inline" type="button" onClick={() => {
+                if (window.confirm(`Are you sure you want to delete ${user.name}?`)) {
+                  deleteUser(user.id)
+                }
               }}>
-                {user.status === 'Active' ? 'Suspend' : 'Activate'}
+                Delete
               </button>,
               <button className="table-action-button" type="button" onClick={() => {
-                const nextRole = window.prompt('Update user role', user.role)
-                if (nextRole) {
-                  setUsers((current) => current.map((item) => item.id === user.id ? { ...item, role: nextRole } : item))
-                  showToast('User role updated.')
+                const nextRole = window.prompt('Enter new role (admin, user, mentor):', user.role) as Role
+                if (nextRole && ['admin', 'user', 'mentor'].includes(nextRole)) {
+                  updateRole(user.id, { role: nextRole })
                 }
               }}>
                 Edit
               </button>,
             ])}
-            emptyMessage="No users match your search."
+            emptyMessage={usersLoading ? "Loading users..." : "No users match your search."}
           />
         )}
 
@@ -292,7 +377,7 @@ function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
                         const file = event.target.files?.[0]
 
                         if (file) {
-                          readImageFile(file, (image) => setEventDraft((current) => ({ ...current, image })))
+                          readImageFile(file, (image) => setEventDraft((current) => ({ ...current, image, file })))
                         }
                       }}
                     />
@@ -312,23 +397,18 @@ function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
                 event.date,
                 String(event.registrations),
                 event.status,
-                <button className="table-action-button" type="button" onClick={() => {
-                  setEvents((current) => current.map((item) => item.id === event.id ? { ...item, status: item.status === 'Published' ? 'Draft' : 'Published' } : item))
-                  showToast('Event status updated.')
-                }}>
-                  {event.status === 'Published' ? 'Unpublish' : 'Publish'}
+                <button className="table-action-button" type="button" disabled>
+                  {event.status === 'Published' ? 'Live' : 'Draft'}
                 </button>,
                 <button className="table-action-button" type="button" onClick={() => {
-                  const nextName = window.prompt('Update event name', event.name)
+                  const nextName = window.prompt('Update event title', event.name)
                   if (nextName) {
-                    setEvents((current) => current.map((item) => item.id === event.id ? { ...item, name: nextName } : item))
-                    showToast('Event updated.')
+                    updateEvent(event.id, { title: nextName, description: '', location: '', capacity: Number(event.registrations), image_url: '' })
                   }
                 }}>Edit</button>,
                 <button className="table-action-button danger-inline" type="button" onClick={() => {
                   if (window.confirm(`Delete ${event.name}?`)) {
-                    setEvents((current) => current.filter((item) => item.id !== event.id))
-                    showToast('Event deleted.')
+                    deleteEvent(event.id)
                   }
                 }}>Delete</button>,
               ])}
@@ -396,23 +476,18 @@ function AdminDashboardPage({ onSignOut }: AdminDashboardPageProps) {
                 blog.author,
                 String(blog.comments),
                 blog.status,
-                <button className="table-action-button" type="button" onClick={() => {
-                  setBlogs((current) => current.map((item) => item.id === blog.id ? { ...item, status: item.status === 'Published' ? 'Draft' : 'Published' } : item))
-                  showToast('Blog status updated.')
-                }}>
-                  {blog.status === 'Published' ? 'Unpublish' : 'Publish'}
+                <button className="table-action-button" type="button" disabled>
+                  {blog.status === 'Published' ? 'Live' : 'Draft'}
                 </button>,
                 <button className="table-action-button" type="button" onClick={() => {
                   const nextTitle = window.prompt('Update blog title', blog.title)
                   if (nextTitle) {
-                    setBlogs((current) => current.map((item) => item.id === blog.id ? { ...item, title: nextTitle } : item))
-                    showToast('Blog post updated.')
+                    updateBlog(blog.id, { title: nextTitle, description: '', image_url: '' })
                   }
                 }}>Edit</button>,
                 <button className="table-action-button danger-inline" type="button" onClick={() => {
                   if (window.confirm(`Delete ${blog.title}?`)) {
-                    setBlogs((current) => current.filter((item) => item.id !== blog.id))
-                    showToast('Blog post deleted.')
+                    deleteBlog(blog.id)
                   }
                 }}>Delete</button>,
               ])}
@@ -526,17 +601,17 @@ type AdminTableProps = {
 }
 
 type AdminAiAssistantProps = {
-  blogs: typeof adminBlogs
+  blogs: AdminBlog[]
   chatDraft: string
   chatMessageCount: number
   chatMessages: AdminChatMessage[]
-  comments: typeof adminComments
-  events: typeof adminEvents
-  messages: typeof adminMessages
+  comments: AdminComment[]
+  events: AdminEvent[]
+  messages: AdminMessage[]
   setChatDraft: Dispatch<SetStateAction<string>>
   setChatMessageCount: Dispatch<SetStateAction<number>>
   setChatMessages: Dispatch<SetStateAction<AdminChatMessage[]>>
-  users: typeof adminUsers
+  users: AdminUser[]
 }
 
 function AdminAiAssistant({
@@ -632,19 +707,19 @@ function AdminAiAssistant({
 function buildAdminChatbotReply(
   prompt: string,
   context: {
-    blogs: typeof adminBlogs
-    comments: typeof adminComments
-    events: typeof adminEvents
-    messages: typeof adminMessages
-    users: typeof adminUsers
+    blogs: AdminBlog[]
+    comments: AdminComment[]
+    events: AdminEvent[]
+    messages: AdminMessage[]
+    users: AdminUser[]
   },
 ) {
   const normalizedPrompt = prompt.toLowerCase()
-  const pendingComments = context.comments.filter((comment) => comment.status === 'Pending')
-  const unreadMessages = context.messages.filter((message) => message.status === 'Unread')
-  const draftEvents = context.events.filter((event) => event.status === 'Draft')
-  const draftBlogs = context.blogs.filter((blog) => blog.status === 'Draft')
-  const suspendedUsers = context.users.filter((user) => user.status === 'Suspended')
+  const pendingComments = (context.comments || []).filter((comment) => comment.status === 'Pending')
+  const unreadMessages = (context.messages || []).filter((message) => message.status === 'Unread')
+  const draftEvents = (context.events || []).filter((event) => event.status === 'Draft')
+  const draftBlogs = (context.blogs || []).filter((blog) => blog.status === 'Draft')
+  const suspendedUsers = (context.users || []).filter((user) => user.status === 'Suspended')
   const highestRegistrationEvent = [...context.events].sort((first, second) => second.registrations - first.registrations)[0]
 
   if (normalizedPrompt.includes('review') || normalizedPrompt.includes('comment') || normalizedPrompt.includes('moderation')) {

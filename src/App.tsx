@@ -1,7 +1,10 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import SiteFooter from './components/SiteFooter'
 import SiteNav from './components/SiteNav'
-import { blogPosts, routes } from './data/siteData'
+import { api } from './data/api'
+import type { Role } from './data/api'
+import { getBlogPosts, routes } from './data/siteData'
+import { useApi } from './hooks/useApi'
 import { usePersistentState } from './hooks/usePersistentState'
 import type { AuthRole, AuthSession } from './types/auth'
 import type { RoutePath } from './types/navigation'
@@ -101,6 +104,8 @@ const upsertMeta = (selector: string, attributes: Record<string, string>) => {
   }
 }
 
+const toAuthRole = (role?: Role): AuthRole => (role === 'admin' ? 'admin' : 'member')
+
 const upsertCanonical = (href: string) => {
   const existing = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]')
   const element = existing ?? document.createElement('link')
@@ -117,10 +122,28 @@ function App() {
   const [route, setRoute] = useState<RoutePath>(getRoute)
   const [currentUrl, setCurrentUrl] = useState(getCurrentUrl)
   const [session, setSession] = usePersistentState<AuthSession | null>('empoweredge-auth-session', null)
+  const { data: blogPosts } = useApi(getBlogPosts)
+  const { data: backendUser, error: sessionError } = useApi(api.auth.me)
   const isProtectedRouteDenied =
     (route === '/dashboard' && session?.role !== 'member') ||
     (route === '/admin' && session?.role !== 'admin')
   const visibleRoute: RoutePath = isProtectedRouteDenied ? '/signin' : route
+
+  useEffect(() => {
+    if (backendUser) {
+      setSession({
+        email: backendUser.email,
+        name: `${backendUser.first_name} ${backendUser.second_name}`.trim() || backendUser.username,
+        role: toAuthRole(backendUser.role),
+      })
+    }
+  }, [backendUser, setSession])
+
+  useEffect(() => {
+    if (sessionError && !window.localStorage.getItem('access_token')) {
+      setSession(null)
+    }
+  }, [sessionError, setSession])
 
   useEffect(() => {
     const syncRoute = () => {
@@ -150,7 +173,7 @@ function App() {
 
     const queryString = currentUrl.includes('?') ? currentUrl.slice(currentUrl.indexOf('?')) : ''
     const postId = new URLSearchParams(queryString).get('post')
-    const post = blogPosts.find((item) => item.id === postId)
+    const post = (blogPosts || []).find((item) => item.id === postId)
 
     return post
       ? {
@@ -158,7 +181,7 @@ function App() {
           description: post.excerpt,
         }
       : fallback
-  }, [visibleRoute, currentUrl])
+  }, [visibleRoute, currentUrl, blogPosts])
 
   useEffect(() => {
     const canonicalUrl = `${window.location.origin}${window.location.pathname}`
@@ -177,10 +200,10 @@ function App() {
     upsertMeta('meta[name="twitter:description"]', { name: 'twitter:description', content: metadata.description })
   }, [metadata, visibleRoute])
 
-  const signIn = (role: AuthRole, email: string) => {
+  const signIn = (role: AuthRole, email: string, name?: string) => {
     const nextSession = {
       email,
-      name: role === 'admin' ? 'Admin User' : 'Empoweredge Member',
+      name: name || (role === 'admin' ? 'Admin User' : 'Empoweredge Member'),
       role,
     }
 

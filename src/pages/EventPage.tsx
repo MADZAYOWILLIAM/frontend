@@ -1,22 +1,33 @@
-import { upcomingEvents } from '../data/siteData'
+import { getUpcomingEvents } from '../data/siteData'
 import type { NavigateTo } from '../types/navigation'
+import { api } from '../data/api'
+import { useApi, useMutation } from '../hooks/useApi'
 
 type EventPageProps = {
   navigateTo: NavigateTo
 }
 
 function EventPage({ navigateTo }: EventPageProps) {
-  const goToDashboardEvents = () => {
-    window.localStorage.setItem('empoweredge-member-active-tab', JSON.stringify('Events'))
-    navigateTo('/dashboard')
-  }
+  const { mutate: joinEvent, isLoading: isJoining, error: joinError } = useMutation(api.events.join, {
+    onSuccess: () => {
+      window.localStorage.setItem('empoweredge-member-active-tab', JSON.stringify('Events'))
+      navigateTo('/dashboard')
+    },
+  })
+
+  const { data: events, isLoading, error } = useApi(getUpcomingEvents)
+
+  if (isLoading) return <div className="p-20 text-center">Loading events...</div>
+  if (error) return <div className="p-20 text-center form-error">Unable to load events: {error}</div>
+
+  const firstEventImage = events?.[0]?.image || ''
 
   return (
     <>
       <section
         className="page-hero page-hero-with-image"
         style={{
-          backgroundImage: `linear-gradient(90deg, rgba(15, 23, 42, 0.88), rgba(15, 23, 42, 0.54)), url(${upcomingEvents[0].image})`,
+          backgroundImage: `linear-gradient(90deg, rgba(15, 23, 42, 0.88), rgba(15, 23, 42, 0.54)), url(${firstEventImage})`,
         }}
       >
         <div className="page-hero-copy">
@@ -26,6 +37,7 @@ function EventPage({ navigateTo }: EventPageProps) {
             Each event is planned around practical support, trusted local partners,
             and follow-up that keeps help moving after the day ends.
           </p>
+          {joinError && <p className="form-error">Sign in to register for an event.</p>}
         </div>
       </section>
 
@@ -40,7 +52,7 @@ function EventPage({ navigateTo }: EventPageProps) {
           <a className="primary-button" href="mailto:hello@foundation.example">Become a volunteer</a>
         </div>
         <div className="event-list" aria-label="Upcoming events">
-          {upcomingEvents.map((event) => (
+          {(events || []).map((event) => (
             <article className="event-row" key={event.name}>
               <img className="event-row-image" src={event.image} alt={event.imageAlt} loading="lazy" decoding="async" />
               <div className="blog-meta event-meta">
@@ -54,12 +66,14 @@ function EventPage({ navigateTo }: EventPageProps) {
               <button
                 className="table-action-button"
                 type="button"
-                onClick={goToDashboardEvents}
+                disabled={isJoining}
+                onClick={() => joinEvent(event.id).catch(() => navigateTo('/signin'))}
               >
-                Register in dashboard
+                {isJoining ? 'Registering...' : 'Register'}
               </button>
             </article>
           ))}
+          {joinError && <p className="form-error">Sign in to register for an event.</p>}
         </div>
       </section>
     </>

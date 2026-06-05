@@ -1,27 +1,61 @@
 import type { RoutePath } from '../types/navigation'
+import { api } from './api'
 
-export const dashboardStats = [
-  { label: 'Events joined', value: '8', icon: 'event_available', trend: '+2 this month', tone: 'blue' },
-  { label: 'Mentorship hours', value: '24', icon: 'school', trend: '+6 this month', tone: 'green' },
-  { label: 'Blog interactions', value: '47', icon: 'favorite', trend: '12 comments', tone: 'pink' },
-  { label: 'Tasks completed', value: '1', icon: 'task_alt', trend: 'Profile progress', tone: 'amber' },
-]
+export const getDashboardStats = async () => {
+  const data = await api.auth.myEvents();
+  return [
+    { label: 'Events joined', value: String(data.joined_events.length), icon: 'event_available', trend: 'Active', tone: 'blue' },
+    { label: 'Mentorship', value: 'Enabled', icon: 'school', trend: 'Program active', tone: 'green' },
+    { label: 'Profile status', value: data.is_verified ? 'Verified' : 'Pending', icon: 'task_alt', trend: 'Security', tone: 'amber' },
+  ];
+};
 
-export const dashboardEvents = [
-  { id: 'care-day', date: 'May 18', time: '9:00 AM', name: 'Neighborhood Care Day', status: 'Registered', location: 'Central Community Hall', owner: 'Volunteer Team' },
-  { id: 'skills-workshop', date: 'Jun 02', time: '2:00 PM', name: 'Youth Skills Workshop', status: 'Open', location: 'Foundation Learning Studio', owner: 'Mentor Desk' },
-]
+export const getDashboardEvents = async () => {
+  const [events, memberData] = await Promise.all([
+    api.events.list(),
+    api.auth.myEvents(),
+  ]);
+  const joinedEventIds = new Set(memberData.joined_events.map((event) => event.id));
 
-export const dashboardActivity = [
-  { title: 'You commented on a mentorship article', time: 'Today, 9:20 AM' },
-  { title: 'New event registration confirmed', time: 'Yesterday, 4:10 PM' },
-  { title: 'Volunteer checklist updated', time: 'Apr 29, 2:45 PM' },
-]
+  return events.map(e => ({
+    id: e.id,
+    date: new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit' }),
+    time: '9:00 AM',
+    name: e.title,
+    status: joinedEventIds.has(e.id) ? 'Registered' : 'Open',
+    location: e.location,
+    owner: 'Foundation Team',
+  }));
+};
+
+export const getDashboardActivity = async () => {
+  const logs = await api.logs.list({ limit: 5 });
+  return logs.map(l => ({
+    title: l.action,
+    time: new Date(l.timestamp).toLocaleTimeString(),
+  }));
+};
 
 export const dashboardTasks = [
   { label: 'Complete volunteer profile', done: true },
-  { label: 'Confirm availability for Care Day', done: false },
-  { label: 'Review youth workshop materials', done: false },
+  { label: 'Upload profile picture', done: false },
+]
+
+export const dashboardMentorship = [
+  { mentor: 'Grace Wanjiku', focus: 'Career readiness', nextSession: 'Jun 04', progress: 68 },
+  { mentor: 'Brian Otieno', focus: 'Community leadership', nextSession: 'Jun 11', progress: 42 },
+]
+
+export const dashboardNotifications = [
+  'Your profile is ready for review.',
+  'A new mentorship session is available.',
+  'Remember to confirm your next event attendance.',
+]
+
+export const dashboardSettings = [
+  { label: 'Email reminders', enabled: true },
+  { label: 'SMS event alerts', enabled: false },
+  { label: 'Mentorship updates', enabled: true },
 ]
 
 export const dashboardQuickActions = [
@@ -30,25 +64,12 @@ export const dashboardQuickActions = [
   { label: 'Contact team', icon: 'support_agent', path: '/contact' },
 ] satisfies { label: string; icon: string; path: RoutePath }[]
 
-export const dashboardMentorship = [
-  { mentor: 'Grace Achieng', focus: 'Career planning', nextSession: 'May 09, 3:00 PM', progress: 68 },
-  { mentor: 'Brian Mwangi', focus: 'Public speaking', nextSession: 'May 14, 11:00 AM', progress: 52 },
-  { mentor: 'Amina Hassan', focus: 'Digital skills', nextSession: 'May 22, 2:30 PM', progress: 81 },
-]
-
-export const dashboardBlogMetrics = [
-  { title: 'How local events become long-term support systems', likes: 19, comments: 3, status: 'Read' },
-  { title: 'What young leaders need after the first workshop', likes: 24, comments: 1, status: 'Saved' },
-  { title: 'Designing resource drives that protect dignity', likes: 15, comments: 1, status: 'New' },
-]
-
-export const dashboardNotifications = [
-  'Youth Skills Workshop registration closes tomorrow.',
-  'Your mentor shared new preparation notes.',
-]
-
-export const dashboardSettings = [
-  { label: 'Email event reminders', enabled: true },
-  { label: 'Show my profile to mentors', enabled: true },
-  { label: 'Weekly progress summary', enabled: false },
-]
+export const getDashboardBlogMetrics = async () => {
+  const blogs = await api.blogs.list({ limit: 3 });
+  return blogs.map(b => ({
+    title: b.title,
+    likes: 0,
+    comments: b.comments?.length || 0,
+    status: 'Latest',
+  }));
+};

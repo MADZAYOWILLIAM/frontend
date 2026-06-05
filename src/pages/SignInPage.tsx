@@ -1,13 +1,24 @@
 import AuthPage from '../components/AuthPage'
-import type { AuthRole } from '../types/auth'
 import type { NavigateTo } from '../types/navigation'
+import { api } from '../data/api'
+import { useMutation } from '../hooks/useApi'
+import type { AuthRole } from '../types/auth'
 
 type SignInPageProps = {
-  onSignIn: (role: AuthRole, email: string) => void
   navigateTo: NavigateTo
+  onSignIn: (role: AuthRole, email: string, name?: string) => void
 }
 
 function SignInPage({ navigateTo, onSignIn }: SignInPageProps) {
+  const { mutate: login, isLoading, error: apiError } = useMutation(api.auth.login, {
+    onSuccess: async (response) => {
+      const user = await api.auth.me()
+      const role: AuthRole = user.role === 'admin' ? 'admin' : 'member'
+      const name = `${user.first_name} ${user.second_name}`.trim() || user.username
+      onSignIn(role, user.email || response.user.email, name)
+    }
+  })
+
   return (
     <AuthPage
       eyebrow="Welcome back"
@@ -23,37 +34,33 @@ function SignInPage({ navigateTo, onSignIn }: SignInPageProps) {
         onSubmit={(event) => {
           event.preventDefault()
           const form = new FormData(event.currentTarget)
-          const role = form.get('role') === 'admin' ? 'admin' : 'member'
-          const email = String(form.get('email') || 'member@empoweredge.example')
+          const email = String(form.get('email') || '')
+          const password = String(form.get('password') || '')
 
-          onSignIn(role, email)
+          void login({ email, password }).catch(() => undefined)
         }}
       >
         <label>
-          Account type
-          <select name="role" defaultValue="member">
-            <option value="member">Member dashboard</option>
-            <option value="admin">Admin dashboard</option>
-          </select>
-        </label>
-        <label>
           Email address
-          <input autoComplete="email" name="email" placeholder="you@example.com" type="email" required />
+          <input autoComplete="email" name="email" placeholder="you@example.com" type="email" required disabled={isLoading} />
         </label>
         <label>
           Password
-          <input autoComplete="current-password" name="password" placeholder="Enter your password" type="password" />
+          <input autoComplete="current-password" name="password" placeholder="Enter your password" type="password" required disabled={isLoading} />
         </label>
+        {apiError && <p className="form-error" style={{ color: 'var(--error-color, #ef4444)', fontSize: '0.875rem' }}>{apiError}</p>}
         <div className="form-row">
           <label className="checkbox-label">
-            <input name="remember" type="checkbox" />
+            <input name="remember" type="checkbox" disabled={isLoading} />
             Remember me
           </label>
           <button className="text-button" type="button" onClick={() => navigateTo('/password-reset')}>
             Forgot password?
           </button>
         </div>
-        <button className="primary-button auth-submit" type="submit">Sign in</button>
+        <button className="primary-button auth-submit" type="submit" disabled={isLoading}>
+          {isLoading ? 'Signing in...' : 'Sign in'}
+        </button>
       </form>
     </AuthPage>
   )

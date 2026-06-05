@@ -1,18 +1,21 @@
 import { useMemo, useState } from 'react'
-import { blogPosts } from '../data/siteData'
+import { getBlogPosts } from '../data/siteData'
 import type { NavigateTo } from '../types/navigation'
+import { useApi } from '../hooks/useApi'
 
 type BlogsPageProps = {
   navigateTo: NavigateTo
 }
 
 function BlogsPage({ navigateTo }: BlogsPageProps) {
+  const { data: blogPosts, isLoading, error } = useApi(getBlogPosts)
   const [searchTerm, setSearchTerm] = useState('')
   const [category, setCategory] = useState('All')
-  const categories = ['All', ...Array.from(new Set(blogPosts.map((post) => post.category)))]
+  
+  const categories = useMemo(() => ['All', ...Array.from(new Set((blogPosts || []).map((post) => post.category)))], [blogPosts])
   const filteredPosts = useMemo(
     () =>
-      blogPosts.filter((post) => {
+      (blogPosts || []).filter((post) => {
         const matchesCategory = category === 'All' || post.category === category
         const matchesSearch = [post.title, post.excerpt, post.category]
           .join(' ')
@@ -21,15 +24,18 @@ function BlogsPage({ navigateTo }: BlogsPageProps) {
 
         return matchesCategory && matchesSearch
       }),
-    [category, searchTerm],
+    [category, searchTerm, blogPosts],
   )
+
+  if (isLoading) return <div className="p-20 text-center">Loading blogs...</div>
+  if (error) return <div className="p-20 text-center form-error">Unable to load blog posts: {error}</div>
 
   return (
     <>
       <section
         className="page-hero page-hero-with-image"
         style={{
-          backgroundImage: `linear-gradient(90deg, rgba(15, 23, 42, 0.88), rgba(15, 23, 42, 0.54)), url(${blogPosts[0].image})`,
+          backgroundImage: `linear-gradient(90deg, rgba(15, 23, 42, 0.88), rgba(15, 23, 42, 0.54)), url(${blogPosts?.[0]?.image})`,
         }}
       >
         <div className="page-hero-copy">
