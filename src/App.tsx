@@ -4,6 +4,7 @@ import SiteNav from './components/SiteNav'
 import { api } from './data/api'
 import type { Role } from './data/api'
 import { getBlogPosts, routes } from './data/siteData'
+import { Analytics } from "@vercel/analytics/next"
 import { useApi } from './hooks/useApi'
 import { usePersistentState } from './hooks/usePersistentState'
 import type { AuthRole, AuthSession } from './types/auth'
@@ -246,7 +247,9 @@ function App() {
         {visibleRoute === '/password-reset' && <PasswordResetPage navigateTo={navigateTo} />}
       </Suspense>
       {visibleRoute !== '/dashboard' && visibleRoute !== '/admin' && <SiteFooter navigateTo={navigateTo} />}
+      <Analytics/>
     </main>
+    
   )
 }
 
